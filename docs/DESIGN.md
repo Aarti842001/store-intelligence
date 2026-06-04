@@ -1,94 +1,75 @@
-# DESIGN.md
+# Design
 
-## What this is
+Raw store CCTV in, a live conversion number out. Four stages, kept deliberately
+decoupled because they have very different runtime needs.
 
-A pipeline that turns raw store CCTV into a live conversion metric. Three
-cameras per store produce footage; a detection pipeline watches that footage and
-emits behavioural events (entries, zone visits, billing queue activity); an API
-ingests those events, correlates them with POS receipts, and answers the only
-question the business actually cares about — *of the people who walked in, how
-many bought something, and where did we lose the rest.*
+## What I built
 
-I built it in four stages that are deliberately decoupled, because they have
-very different runtime needs.
+- Detection watches three camera feeds and emits behavioural events (entry/exit, zone visits, billing queue).
+- An API ingests those events, correlates them with POS receipts, and serves the metrics.
+- One question drives all of it: *of the people who walked in, how many bought, and where did we lose the rest?*
 
-## The four stages
+## The pipeline
 
-**1. Detection (`pipeline/detect_store.py`).** This is the only GPU-bound part,
-so it runs separately (I develop it on a Colab T4). It uses YOLO11n for person
-detection and BoT-SORT for tracking. Each camera has its own handler because the
-cameras do completely different jobs: the entry camera runs a horizontal tripwire
-with a dead-band and a short cooldown to turn track crossings into ENTRY/EXIT;
-the floor camera tests track centroids against zone polygons for
-ZONE_ENTER/EXIT/DWELL; the billing camera watches a queue region and debounces
-presence into BILLING_QUEUE_JOIN/ABANDON. Zone names and polygons are read from
-a `store_layout.json` when one is supplied (the brief's source of truth), and
-fall back to the geometry I calibrated for Store 2 when it isn't — so the
-pipeline isn't hardcoded to one store but still runs on these clips out of the
-box. Staff are flagged by their pink
-uniform (an HSV colour test), and re-entry is caught with a colour-histogram
-match against recently-exited tracks. The output is a flat `events.jsonl`.
+**1. Detection — `pipeline/detect_store.py`** (the only GPU-bound part; I run it on a Colab T4)
 
-**2. Event stream (`scripts/replay.py`).** Detection writes a file; the API
-reads events over HTTP. Keeping a file in between means I can re-run detection on
-a beefy machine and replay into the API later, and it gives me a clean way to do
-the Part E live demo — `--realtime` paces events by their own timestamps so the
-dashboard updates as if a real store were trickling them in.
+- YOLO11n for person detection, BoT-SORT for tracking.
+- One handler per camera, because the cameras do different jobs:
+  - Entry cam → horizontal tripwire (dead-band + cooldown) → `ENTRY` / `EXIT`
+  - Floor cam → track centroid vs zone polygons → `ZONE_ENTER` / `ZONE_EXIT` / `ZONE_DWELL`
+  - Billing cam → queue region + debounce → `BILLING_QUEUE_JOIN` / `ABANDON`
+- Staff flagged by their pink uniform (an HSV colour test) and excluded from customer metrics.
+- Re-entry caught with a colour-histogram match against recently-exited tracks → `REENTRY`, not a second `ENTRY`.
+- Zone names/polygons read from `store_layout.json` when supplied; calibrated Store-2 fallback otherwise.
+- Output: one JSON event per line in `events.jsonl`.
 
-**3. Intelligence API (`app/`).** FastAPI + PostgreSQL. Every metric is computed
-on read against the events table — nothing is pre-aggregated — so a freshly
-ingested event changes the numbers immediately, which is what "real-time, not
-cached from yesterday" means. Ingest is idempotent because `event_id` is the
-primary key, so replaying a batch is a no-op. POS correlation is pure
-store + time-window matching, exactly as the brief specifies.
+**2. Event stream — `scripts/replay.py`**
 
-**4. Consumers.** A small web dashboard polls `/metrics`, `/funnel`,
-`/anomalies` and `/health` every two seconds. An on-call engineer would live on
-`/health` and `/anomalies`.
+- Detection writes a file; the API reads events over HTTP. The file in between is the decoupling point.
+- Lets me run detection on a beefy machine and replay later, and it drives the Part E live demo (`--realtime` paces events by their own timestamps, so the dashboard updates as if a real store were trickling them in).
 
-## The honest limitation
+**3. API — `app/` (FastAPI + PostgreSQL)**
 
-The clips I was given are not time-synced — the wall-clocks burned into the
-frames are days apart between cameras — and each camera tracker mints its own
-visitor ids. That means I genuinely cannot link "person who entered on CAM1" to
-"person who paid on CAM6". So I made a deliberate choice rather than fake it: the
-funnel counts distinct visitors *per stage*, and conversion is expressed as a
-store/window ratio (billing-zone visitors with a POS receipt within five minutes,
-over unique entrants). The metric logic is written so that *if* visitor ids were
-consistent across cameras — which is what the grader's clean event set will look
-like — the stages chain per-visitor with no code change. The production fix is
-cross-camera Re-ID with OSNet appearance embeddings; I left that out on purpose
-because the provided footage can't support it and I'd rather ship something
-truthful than something that looks clever and lies.
+- Every metric is computed on read from the events table — nothing pre-aggregated — so a freshly ingested event moves the numbers immediately. That's what "real-time, not cached from yesterday" means.
+- Ingest is idempotent: `event_id` is the primary key, so replaying a batch is a no-op.
+- POS correlation is store + 5-minute time window, exactly as the brief specifies.
 
-## Storage and degradation
+**4. Consumers**
 
-I chose Postgres over SQLite specifically so I could show the production
-behaviours the brief grades: idempotent upserts via `ON CONFLICT`, and a clean
-HTTP 503 with a structured body (no stack trace) when the database is
-unreachable. The app still falls back to SQLite with zero config for local runs
-and the test suite, so `pytest` needs no infrastructure.
+- A small web dashboard polls `/metrics`, `/funnel`, `/anomalies` and `/health` every 2 seconds.
+- An on-call engineer would live on `/health` and `/anomalies`.
+
+## The honest limitation (the thing I'd flag first)
+
+- The clips aren't time-synced — the wall-clocks burned into the frames are days apart between cameras.
+- Each camera's tracker mints its own visitor ids, so I genuinely cannot link "entered on CAM1" to "paid on CAM6".
+- So I didn't fake it. The funnel counts distinct visitors **per stage**, and conversion is a store/window ratio: billing-zone visitors with a POS receipt within five minutes, over unique entrants.
+- The metric code is written so that **if** visitor ids were consistent across cameras — which is what the grader's clean event set looks like — the stages chain per-visitor with no code change.
+- Production fix: cross-camera Re-ID with OSNet appearance embeddings. I left it out on purpose — this footage can't support it, and I'd rather ship something truthful than something that looks clever and lies.
+
+## Storage & failure behaviour
+
+- Postgres over SQLite on purpose — so I could actually demonstrate the production behaviours the brief grades: idempotent upserts via `ON CONFLICT`, and a clean HTTP 503 with a structured body (no stack trace) when the DB is unreachable.
+- Falls back to SQLite with zero config for local runs and the test suite, so `pytest` needs no infrastructure.
 
 ## AI-Assisted Decisions
 
-**1. Tripwire calibration — I overrode the AI.** When I described the entry
-camera, the assistant suggested the standard approach: put the counting line at
-the vertical middle of the frame (~0.45 of height). On the actual footage that
-was wrong — there's a frosted-glass vestibule, and the real tile-to-wood
-threshold sits much lower, around 0.57. I moved the line and entry accuracy
-jumped from badly under-counting to roughly 10 of 11 true entries. Lesson I'd
-repeat: calibrate against frames, never against a default.
+**1. Tripwire line — I overrode the AI.**
 
-**2. Conversion semantics — I pushed back and reframed.** The AI's first
-instinct was to link each billing visitor to their entry session for a clean
-per-person funnel. I'd already found the cameras weren't synced, so that link is
-fiction here. We settled on the population-level / store-window interpretation
-and I documented it as a known limitation rather than pretending the ids line up.
-This is the decision I most want to be asked about in the follow-up.
+- It suggested the textbook default: counting line at the vertical middle of the frame (~0.45 of height).
+- Wrong on this footage — there's a frosted-glass vestibule, so the real tile-to-wood threshold sits lower, around 0.57.
+- I moved the line; entry accuracy went from badly under-counting to roughly 10 of 11 true entries.
+- Lesson I'd repeat: calibrate against actual frames, never a default.
 
-**3. Test generation — I agreed, then hardened.** I had the assistant draft the
-pytest cases from a plain-language spec, then changed two things: I made all test
-timestamps relative to "now" (the metrics window is rolling, so hard-coded dates
-silently fell outside it and gave false passes), and I added the
-alias-normalisation and DB-down cases it had skipped. The prompts and the exact
-edits are recorded at the top of each test file.
+**2. Conversion semantics — I pushed back and reframed.**
+
+- The AI's first instinct was to link each billing visitor to their entry session for a clean per-person funnel.
+- I'd already found the cameras aren't synced, so that link is fiction here.
+- We settled on the population-level / store-window interpretation, and I documented it as a known limitation rather than pretending the ids line up.
+- This is the decision I most want to be asked about in the follow-up.
+
+**3. Tests — I agreed, then hardened.**
+
+- I had the assistant draft the pytest cases from a plain-language spec.
+- Then I changed two things: made all test timestamps relative to "now" (the metrics window is rolling, so hard-coded dates silently fell outside it and gave false passes), and added the alias-normalisation and DB-down cases it had skipped.
+- The prompt and the exact edits are recorded at the top of each test file.
