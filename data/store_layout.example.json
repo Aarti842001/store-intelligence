@@ -1,0 +1,18 @@
+{
+  "_comment": "Example store_layout.json in the shape pipeline/detect_store.py reads. Coords are normalised 0-1 (x from left, y from top). These mirror the calibrated Store 2 defaults, so running with --layout data/store_layout.example.json reproduces the built-in behaviour. The challenge's own store_layout.json can replace this; unknown extra keys (open_hours, etc.) are ignored.",
+  "store_id": "STORE_MUM_002",
+  "cameras": {
+    "CAM2": {
+      "role": "floor",
+      "zones": {
+        "LEFT_SHELF":   [[0.00, 0.28], [0.40, 0.28], [0.40, 1.00], [0.00, 1.00]],
+        "RIGHT_SHELF":  [[0.62, 0.28], [1.00, 0.28], [1.00, 1.00], [0.62, 1.00]],
+        "CENTER_AISLE": [[0.30, 0.55], [0.70, 0.55], [0.70, 1.00], [0.30, 1.00]]
+      }
+    },
+    "CAM6": {
+      "role": "billing",
+      "queue_region": [[0.26, 0.18], [0.76, 0.18], [0.76, 0.58], [0.26, 0.58]]
+    }
+  }
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Store Intelligence — Live</title>
+<style>
+  :root { --bg:#0e1116; --card:#171b22; --line:#262b34; --ink:#e6e9ee; --muted:#8b94a3; --accent:#8b5cf6; --good:#34d399; --warn:#f59e0b; --bad:#f87171; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:14px; padding:18px 24px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; font-weight:600; letter-spacing:.2px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px rgba(52,211,153,.15); }
+  .dot.stale { background:var(--warn); box-shadow:0 0 0 4px rgba(245,158,11,.15); }
+  input { background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px 10px; font:inherit; }
+  main { padding:24px; max-width:1000px; margin:0 auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; }
+  .card .value { font-size:30px; font-weight:650; margin-top:6px; }
+  .card .sub { color:var(--muted); font-size:12px; margin-top:2px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:28px 0 12px; }
+  .funnel .row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+  .funnel .name { width:120px; color:var(--muted); font-size:13px; text-transform:capitalize; }
+  .funnel .bar { height:26px; background:linear-gradient(90deg,var(--accent),#6366f1); border-radius:6px; min-width:2px; transition:width .4s ease; }
+  .funnel .n { font-variant-numeric:tabular-nums; }
+  .anoms .a { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:9px; margin:8px 0; background:var(--card); }
+  .pill { font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  .INFO{background:rgba(139,148,163,.18);color:var(--muted);} .WARN{background:rgba(245,158,11,.18);color:var(--warn);} .CRITICAL{background:rgba(248,113,113,.18);color:var(--bad);}
+  .muted { color:var(--muted); } footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="health-dot"></span>
+  <h1>Store Intelligence</h1>
+  <span class="muted" id="health-text">connecting…</span>
+  <span style="flex:1"></span>
+  <input id="store" value="STORE_BLR_002" spellcheck="false"/>
+</header>
+
+<main>
+  <div class="grid" id="cards"></div>
+  <h2>Conversion funnel</h2>
+  <div class="funnel" id="funnel"></div>
+  <h2>Active anomalies</h2>
+  <div class="anoms" id="anoms"></div>
+</main>
+<footer>polling every 2s · data is live from <code>/stores/&lt;id&gt;/metrics</code></footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = ""; // same origin
+
+function card(label, value, sub="") {
+  return `<div class="card"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+}
+
+async function get(path){ const r = await fetch(api + path); if(!r.ok) throw new Error(r.status); return r.json(); }
+
+async function tick(){
+  const store = $("#store").value.trim();
+  try {
+    const [m, f, a, h] = await Promise.all([
+      get(`/stores/${store}/metrics`),
+      get(`/stores/${store}/funnel`),
+      get(`/stores/${store}/anomalies`),
+      get(`/health`),
+    ]);
+
+    $("#cards").innerHTML =
+      card("Unique visitors", m.unique_visitors) +
+      card("Conversion", (m.conversion_rate*100).toFixed(1)+"%", `${m.converted_visitors} bought`) +
+      card("Queue depth", m.current_queue_depth, "at billing now") +
+      card("Abandonment", (m.abandonment_rate*100).toFixed(1)+"%", "left the queue");
+
+    const peak = Math.max(1, ...f.stages.map(s=>s.count));
+    $("#funnel").innerHTML = f.stages.map(s =>
+      `<div class="row"><span class="name">${s.stage.replace('_',' ')}</span>
+        <div class="bar" style="width:${100*s.count/peak}%"></div>
+        <span class="n">${s.count}${s.drop_off_pct!=null?` · −${s.drop_off_pct}%`:""}</span></div>`).join("");
+
+    $("#anoms").innerHTML = a.anomalies.length ? a.anomalies.map(x =>
+      `<div class="a"><span class="pill ${x.severity}">${x.severity}</span>
+        <div><div>${x.detail}</div><div class="muted">→ ${x.suggested_action}</div></div></div>`).join("")
+      : `<div class="muted">none right now</div>`;
+
+    const feed = (h.stores||[]).find(s=>s.store_id===store);
+    const stale = feed && feed.stale;
+    $("#health-dot").className = "dot" + (stale ? " stale" : "");
+    $("#health-text").textContent = h.database==="up"
+      ? (stale ? "feed stale" : "feed live") : "database down";
+  } catch(e){
+    $("#health-dot").className = "dot stale";
+    $("#health-text").textContent = "api unreachable";
+  }
+}
+tick(); setInterval(tick, 2000);
+</script>
+</body>
+</html>

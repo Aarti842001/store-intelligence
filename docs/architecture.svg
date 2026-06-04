@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="ui-sans-serif,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7c3aed"/>
+    </marker>
+    <linearGradient id="north" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#13131a"/>
+      <stop offset="1" stop-color="#241b3d"/>
+    </linearGradient>
+    <style>
+      .title{font-size:25px;font-weight:700;fill:#1b1f2a}
+      .sub{font-size:13.5px;fill:#6b7280}
+      .stageno{font-size:13px;font-weight:700;fill:#7c3aed}
+      .stagelb{font-size:12px;font-weight:700;letter-spacing:1.3px;fill:#9aa3b2}
+      .bt{font-size:15.5px;font-weight:700;fill:#1b1f2a}
+      .bsub{font-size:11.5px;fill:#8b94a3;font-style:italic}
+      .li{font-size:12.5px;fill:#39404e}
+      .ep{font-size:12.5px;font-weight:600;fill:#1b1f2a}
+      .epn{font-size:11px;fill:#8b94a3}
+      .chiptx{font-size:11.5px;fill:#5b21b6;font-weight:600}
+      .infra{font-size:12px;font-weight:700;fill:#334155}
+      .infrasub{font-size:10.5px;fill:#94a3b8}
+      .northk{font-size:14px;font-weight:700;fill:#c4b5fd}
+      .northtx{font-size:13.5px;fill:#e9ebf0}
+      .sechd{font-size:12px;font-weight:700;letter-spacing:1.2px;fill:#7c3aed}
+      .edge{stroke:#7c3aed}
+      .limtx{font-size:12.5px;fill:#5b6472}
+    </style>
+  </defs>
+
+  <rect width="1280" height="800" fill="#f6f7f9"/>
+
+  <!-- header -->
+  <text x="44" y="50" class="title">Store Intelligence — from raw CCTV to a live conversion number</text>
+  <text x="44" y="74" class="sub">Purplle Store 2  ·  detection runs on a Colab GPU, the API ships in Docker  ·  North-Star metric: offline store conversion rate</text>
+
+  <!-- ===================== STAGE 1: DETECTION ===================== -->
+  <text x="64" y="118" class="stageno">1</text>
+  <text x="80" y="118" class="stagelb">DETECTION  ·  GPU</text>
+  <rect x="44" y="132" width="300" height="338" rx="16" fill="#ffffff" stroke="#e4e7ee" stroke-width="1.5"/>
+  <text x="68" y="164" class="bt">pipeline/detect_store.py</text>
+  <text x="68" y="183" class="bsub">raw clips  →  structured events</text>
+  <text x="68" y="214" class="li">• YOLO11n — person detection</text>
+  <text x="68" y="236" class="li">• BoT-SORT — per-camera tracking</text>
+  <text x="68" y="258" class="li">• Tripwire + dead-band → ENTRY / EXIT</text>
+  <text x="68" y="280" class="li">• Zone polygons → ZONE_ENTER/EXIT/DWELL</text>
+  <text x="68" y="302" class="li">• Pink-uniform HSV rule → is_staff</text>
+  <text x="68" y="324" class="li">• Colour-hist Re-ID → REENTRY</text>
+  <text x="68" y="346" class="li">• Queue debounce → BILLING_QUEUE_*</text>
+  <!-- camera chips -->
+  <g>
+    <rect x="68" y="372" width="116" height="26" rx="13" fill="#f3effc" stroke="#e0d6f7"/>
+    <text x="126" y="389" text-anchor="middle" class="chiptx">CAM1 · entry</text>
+    <rect x="196" y="372" width="116" height="26" rx="13" fill="#f3effc" stroke="#e0d6f7"/>
+    <text x="254" y="389" text-anchor="middle" class="chiptx">CAM2 · floor</text>
+    <rect x="68" y="406" width="116" height="26" rx="13" fill="#f3effc" stroke="#e0d6f7"/>
+    <text x="126" y="423" text-anchor="middle" class="chiptx">CAM6 · billing</text>
+    <rect x="196" y="406" width="116" height="26" rx="13" fill="#f3effc" stroke="#e0d6f7"/>
+    <text x="254" y="423" text-anchor="middle" class="chiptx">store layout</text>
+  </g>
+  <text x="68" y="454" class="epn">CPU fallback for reviewers without a GPU.</text>
+
+  <!-- arrow 1->2 -->
+  <line x1="350" y1="300" x2="386" y2="300" class="edge" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== STAGE 2: EVENT STREAM ===================== -->
+  <text x="412" y="118" class="stageno">2</text>
+  <text x="428" y="118" class="stagelb">EVENT STREAM</text>
+  <rect x="392" y="132" width="248" height="338" rx="16" fill="#ffffff" stroke="#e4e7ee" stroke-width="1.5"/>
+  <text x="416" y="164" class="bt">events.jsonl</text>
+  <text x="416" y="183" class="bsub">one canonical event per line</text>
+  <text x="416" y="210" class="li">event_id · store_id</text>
+  <text x="416" y="230" class="li">camera_id · visitor_id</text>
+  <text x="416" y="250" class="li">event_type · timestamp</text>
+  <text x="416" y="270" class="li">zone_id · dwell_ms · is_staff</text>
+  <text x="416" y="290" class="li">confidence · metadata{…}</text>
+  <line x1="416" y1="306" x2="616" y2="306" stroke="#eef0f4" stroke-width="1.5"/>
+  <text x="416" y="332" class="bt" style="font-size:14px">scripts/replay.py</text>
+  <text x="416" y="354" class="li">• --batch  → fast back-fill</text>
+  <text x="416" y="376" class="li">• --realtime → paced replay</text>
+  <rect x="416" y="398" width="200" height="26" rx="13" fill="#f3effc" stroke="#e0d6f7"/>
+  <text x="516" y="415" text-anchor="middle" class="chiptx">tolerant ingest (alias-mapped)</text>
+  <text x="416" y="450" class="epn">decouples GPU work from the API.</text>
+
+  <!-- arrow 2->3 -->
+  <line x1="646" y1="300" x2="682" y2="300" class="edge" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== STAGE 3: INTELLIGENCE API ===================== -->
+  <text x="708" y="118" class="stageno">3</text>
+  <text x="724" y="118" class="stagelb">INTELLIGENCE API  ·  docker compose up</text>
+  <rect x="688" y="132" width="362" height="338" rx="16" fill="#ffffff" stroke="#e4e7ee" stroke-width="1.5"/>
+  <text x="712" y="164" class="bt">FastAPI service</text>
+  <text x="712" y="183" class="bsub">every metric computed on read — never stale</text>
+  <!-- endpoints -->
+  <text x="712" y="212" class="ep">POST /events/ingest</text>
+  <text x="1026" y="212" text-anchor="end" class="epn">idempotent · 207 partial</text>
+  <text x="712" y="234" class="ep">GET /stores/{id}/metrics</text>
+  <text x="1026" y="234" text-anchor="end" class="epn">visitors · conversion</text>
+  <text x="712" y="256" class="ep">GET /stores/{id}/funnel</text>
+  <text x="1026" y="256" text-anchor="end" class="epn">session-deduped</text>
+  <text x="712" y="278" class="ep">GET /stores/{id}/heatmap</text>
+  <text x="1026" y="278" text-anchor="end" class="epn">data_confidence</text>
+  <text x="712" y="300" class="ep">GET /stores/{id}/anomalies</text>
+  <text x="1026" y="300" text-anchor="end" class="epn">+ suggested_action</text>
+  <text x="712" y="322" class="ep">GET /health</text>
+  <text x="1026" y="322" text-anchor="end" class="epn">STALE_FEED</text>
+  <line x1="712" y1="338" x2="1026" y2="338" stroke="#eef0f4" stroke-width="1.5"/>
+  <text x="712" y="360" class="epn">structured logs: trace_id · latency_ms · status   ·   DB down → 503</text>
+  <!-- infra row inside stage 3 -->
+  <g>
+    <path d="M724 392 a36 9 0 0 0 72 0 v34 a36 9 0 0 1 -72 0 z" fill="#eef1f6" stroke="#cfd6e2"/>
+    <ellipse cx="760" cy="392" rx="36" ry="9" fill="#f7f9fc" stroke="#cfd6e2"/>
+    <text x="760" y="446" text-anchor="middle" class="infra">PostgreSQL</text>
+  </g>
+  <rect x="836" y="384" width="190" height="48" rx="10" fill="#fbfaff" stroke="#e0d6f7"/>
+  <text x="931" y="406" text-anchor="middle" class="infra">POS transactions.csv</text>
+  <text x="931" y="423" text-anchor="middle" class="infrasub">store + 5-minute window match</text>
+
+  <!-- arrow 3->4 -->
+  <line x1="1056" y1="300" x2="1092" y2="300" class="edge" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== STAGE 4: CONSUMERS ===================== -->
+  <text x="1118" y="118" class="stageno">4</text>
+  <text x="1134" y="118" class="stagelb">CONSUMERS</text>
+  <rect x="1098" y="132" width="148" height="150" rx="16" fill="#ffffff" stroke="#e4e7ee" stroke-width="1.5"/>
+  <text x="1116" y="164" class="bt" style="font-size:14px">Live dashboard</text>
+  <text x="1116" y="186" class="li">polls /metrics,</text>
+  <text x="1116" y="204" class="li">/funnel, /anomalies</text>
+  <text x="1116" y="222" class="li">every 2 seconds</text>
+  <text x="1116" y="252" class="epn">Part E bonus</text>
+  <rect x="1098" y="298" width="148" height="172" rx="16" fill="#ffffff" stroke="#e4e7ee" stroke-width="1.5"/>
+  <text x="1116" y="330" class="bt" style="font-size:14px">On-call / mgr</text>
+  <text x="1116" y="352" class="li">/health — is any</text>
+  <text x="1116" y="370" class="li">feed stale?</text>
+  <text x="1116" y="392" class="li">/anomalies — is a</text>
+  <text x="1116" y="410" class="li">queue building?</text>
+  <text x="1116" y="440" class="epn">act in real time</text>
+
+  <!-- ===================== NORTH STAR ===================== -->
+  <rect x="44" y="504" width="1202" height="62" rx="14" fill="url(#north)"/>
+  <text x="68" y="532" class="northk">NORTH STAR</text>
+  <text x="68" y="552" class="northtx">Conversion rate  =  converted visitors  ÷  unique visitors   —   detection sharpens this number, the API makes it actionable.</text>
+
+  <!-- ===================== EDGE CASES ===================== -->
+  <text x="44" y="608" class="sechd">EDGE CASES HANDLED</text>
+  <g>
+    <rect x="44"  y="620" width="118" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="103"  y="638" text-anchor="middle" class="chiptx">group entry → N</text>
+    <rect x="172" y="620" width="112" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="228" y="638" text-anchor="middle" class="chiptx">staff excluded</text>
+    <rect x="294" y="620" width="150" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="369" y="638" text-anchor="middle" class="chiptx">re-entry, not 2nd entry</text>
+    <rect x="454" y="620" width="128" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="518" y="638" text-anchor="middle" class="chiptx">graceful low-conf</text>
+    <rect x="592" y="620" width="150" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="667" y="638" text-anchor="middle" class="chiptx">queue join / abandon</text>
+    <rect x="752" y="620" width="140" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="822" y="638" text-anchor="middle" class="chiptx">empty store → zeros</text>
+    <rect x="902" y="620" width="128" height="28" rx="14" fill="#f3effc" stroke="#e0d6f7"/><text x="966" y="638" text-anchor="middle" class="chiptx">idempotent ingest</text>
+  </g>
+
+  <!-- ===================== LIMITATION ===================== -->
+  <text x="44" y="694" class="sechd">KNOWN LIMITATION  (see DESIGN.md)</text>
+  <text x="44" y="716" class="limtx">The provided clips are not time-synced and each camera mints its own visitor ids, so cross-camera identity isn't linked — the funnel reads at the</text>
+  <text x="44" y="734" class="limtx">population level and conversion is a store/window ratio. Production fix: OSNet appearance embeddings for true cross-camera Re-ID.</text>
+</svg>

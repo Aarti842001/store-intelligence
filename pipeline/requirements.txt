@@ -1,0 +1,5 @@
+# detection pipeline deps -- only needed to RUN the clips (e.g. on Colab),
+# deliberately kept out of the API image so it stays small.
+ultralytics>=8.3
+opencv-python-headless>=4.9
+numpy>=1.26
